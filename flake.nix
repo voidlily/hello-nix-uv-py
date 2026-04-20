@@ -5,6 +5,12 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    nix-oci = {
+      url = "github:dauliac/nix-oci";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+      inputs.flake-parts.follows = "flake-parts";
+    };
 
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
@@ -30,7 +36,15 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.treefmt-nix.flakeModule
+        inputs.nix-oci.flakeModule
       ];
+      oci = {
+        enabled = true;
+        cve.grype.enabled = true;
+        cve.trivy.enabled = true;
+        sbom.syft.enabled = true;
+        test.dive.enabled = true;
+      };
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -46,7 +60,7 @@
           ...
         }:
         let
-          python = pkgs.python3;
+          python = pkgs.python314;
 
           workspace = inputs.uv2nix.lib.workspace.loadWorkspace {
             workspaceRoot = ./.;
@@ -61,27 +75,35 @@
           };
 
           pythonSet =
-            let
-              inherit (inputs.nixpkgs) lib;
-              python = pkgs.python3;
-            in
             (pkgs.callPackage inputs.pyproject-nix.build.packages {
               inherit python;
             }).overrideScope
               (
-                lib.composeManyExtensions [
+                inputs.nixpkgs.lib.composeManyExtensions [
                   inputs.pyproject-build-systems.overlays.wheel
                   uvLockedOverlay
                 ]
               );
 
-          projectAsPackage = pythonSet.hello;
+          addMeta =
+            drv:
+            drv.overrideAttrs (old: {
+              passthru = inputs.nixpkgs.lib.recursiveUpdate (old.passthru or { }) {
+                inherit (pythonSet.testing.passthru) tests;
+              };
+
+              meta = (old.meta or { }) // {
+                mainProgram = "fastapi";
+                description = "hello fastapi";
+              };
+              version = "0.1.0";
+            });
         in
         {
           devShells =
             let
               editablePythonSet = pythonSet.overrideScope editableOverlay;
-              virtualenv = pythonSet.mkVirtualEnv "hello-dev-env" workspace.deps.all;
+              virtualenv = addMeta (pythonSet.mkVirtualEnv "hello-dev-env" workspace.deps.all);
             in
             {
               default = pkgs.mkShell {
@@ -101,7 +123,7 @@
               };
             };
           packages = {
-            env = pythonSet.mkVirtualEnv "hello-env" workspace.deps.default;
+            env = addMeta (pythonSet.mkVirtualEnv "hello-env" workspace.deps.default);
             default = self'.packages.env;
             mypy = pythonSet.mkVirtualEnv "mypy" workspace.deps.all;
             docker = pkgs.dockerTools.streamLayeredImage {
@@ -141,6 +163,29 @@
               ruff-check.enable = true;
               ruff-format.enable = true;
             };
+          };
+
+          oci.containers.hello = {
+            package = self'.packages.env;
+            multiArch.enabled = true;
+            registry = "localhost:5000";
+            push = false;
+            entrypoint = [
+              "fastapi"
+              "run"
+              "-e"
+              "hello.main:app"
+            ];
+          };
+
+          oci.debug = {
+            enabled = true;
+            entrypoint.enabled = true;
+            packages = with pkgs; [
+              coreutils
+              bash
+              curl
+            ];
           };
         };
     };
