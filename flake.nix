@@ -28,6 +28,9 @@
   outputs =
     inputs@{ flake-parts, self, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [
+        inputs.treefmt-nix.flakeModule
+      ];
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -43,53 +46,13 @@
           ...
         }:
         let
-          pythonSet =
-            let
-              inherit (inputs'.nixpkgs) lib;
-              python = pkgs.python3;
-            in
-            (pkgs.callPackage inputs'.pyproject-nix.build.packages {
-              inherit python;
-            }).overrideScope
-              (
-                lib.composeManyExtensions [
-                  inputs.pyproject-build-systems.overlays.wheel
-                  self'.overlay
-                ]
-              );
-        in
-        {
-          devShells =
-            let
-              pythonSet = pythonSet.overrideScope self'.editableOverlay;
-              virtualenv = pythonSet.mkVirtualEnv "hello-dev-env" self'.workspace.deps.all;
-            in
-            {
-              default = pkgs.mkShell {
-                packages = [
-                  virtualenv
-                  pkgs.uv
-                ];
-                env = {
-                  UV_NO_SYNC = "1";
-                  UV_PYTHON = pythonSet.python.interpreter;
-                  UV_PYTHON_DOWNLOADS = "never";
-                };
-                shellHook = ''
-                  unset PYTHONPATH
-                  export REPO_ROOT=$(git rev-parse --show-toplevel)
-                '';
-              };
-            };
-        };
-      flake =
-        let
-          inherit (inputs.nixpkgs) lib;
-          forAllSystems = lib.genAttrs lib.systems.flakeExposed;
+          python = pkgs.python3;
 
-          workspace = inputs.uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+          workspace = inputs.uv2nix.lib.workspace.loadWorkspace {
+            workspaceRoot = ./.;
+          };
 
-          overlay = workspace.mkPyprojectOverlay {
+          uvLockedOverlay = workspace.mkPyprojectOverlay {
             sourcePreference = "wheel";
           };
 
@@ -97,10 +60,9 @@
             root = "$REPO_ROOT";
           };
 
-          pythonSets = forAllSystems (
-            system:
+          pythonSet =
             let
-              pkgs = inputs.nixpkgs.legacyPackages.${system};
+              inherit (inputs.nixpkgs) lib;
               python = pkgs.python3;
             in
             (pkgs.callPackage inputs.pyproject-nix.build.packages {
@@ -109,18 +71,16 @@
               (
                 lib.composeManyExtensions [
                   inputs.pyproject-build-systems.overlays.wheel
-                  overlay
+                  uvLockedOverlay
                 ]
-              )
-          );
+              );
 
+          projectAsPackage = pythonSet.hello;
         in
         {
-          devShells = forAllSystems (
-            system:
+          devShells =
             let
-              pkgs = inputs.nixpkgs.legacyPackages.${system};
-              pythonSet = pythonSets.${system}.overrideScope editableOverlay;
+              editablePythonSet = pythonSet.overrideScope editableOverlay;
               virtualenv = pythonSet.mkVirtualEnv "hello-dev-env" workspace.deps.all;
             in
             {
@@ -131,7 +91,7 @@
                 ];
                 env = {
                   UV_NO_SYNC = "1";
-                  UV_PYTHON = pythonSet.python.interpreter;
+                  UV_PYTHON = editablePythonSet.python.interpreter;
                   UV_PYTHON_DOWNLOADS = "never";
                 };
                 shellHook = ''
@@ -139,65 +99,49 @@
                   export REPO_ROOT=$(git rev-parse --show-toplevel)
                 '';
               };
-            }
-          );
-
-          packages = forAllSystems (
-            system:
-            let
-              pkgs = inputs.nixpkgs.legacyPackages.${system};
-            in
-            {
-              env = pythonSets.${system}.mkVirtualEnv "hello-env" workspace.deps.default;
-              mypy = pythonSets.${system}.mkVirtualEnv "mypy" workspace.deps.all;
-              docker = pkgs.dockerTools.streamLayeredImage {
-                name = "hello";
-                contents = [
-                  self.packages.${system}.env
-                  pkgs.coreutils
-                  pkgs.dockerTools.binSh
-                ];
-                config = {
-                  exposedPorts = {
-                    "8000/tcp" = { };
-                  };
-                  Cmd = [
-                    "fastapi"
-                    "run"
-                    "-e"
-                    "hello.main:app"
-                  ];
+            };
+          packages = {
+            env = pythonSet.mkVirtualEnv "hello-env" workspace.deps.default;
+            default = self'.packages.env;
+            mypy = pythonSet.mkVirtualEnv "mypy" workspace.deps.all;
+            docker = pkgs.dockerTools.streamLayeredImage {
+              name = "hello";
+              contents = [
+                self'.packages.env
+                pkgs.coreutils
+                pkgs.dockerTools.binSh
+              ];
+              config = {
+                exposedPorts = {
+                  "8000/tcp" = { };
                 };
+                Cmd = [
+                  "fastapi"
+                  "run"
+                  "-e"
+                  "hello.main:app"
+                ];
               };
-            }
-          );
+            };
+          };
 
-          apps = forAllSystems (system: {
+          apps = {
             default = {
               type = "app";
-              program = "${self.packages.${system}.env}/bin/fastapi";
+              program = "${self'.packages.env}/bin/fastapi";
             };
-          });
+          };
 
-          formatter = forAllSystems (
-            system:
-            let
-              pkgs = inputs.nixpkgs.legacyPackages.${system} // self.packages.${system};
-              treefmtEval = inputs.treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
-            in
-            treefmtEval.config.build.wrapper
-          );
-          checks = forAllSystems (
-            system:
-            let
-              pkgs = inputs.nixpkgs.legacyPackages.${system} // self.packages.${system};
-              treefmtEval = inputs.treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
-            in
-            {
-              formatting = treefmtEval.config.build.check self;
-            }
-          );
-
+          treefmt = {
+            programs = {
+              mypy = {
+                enable = true;
+                package = self'.packages.mypy;
+              };
+              ruff-check.enable = true;
+              ruff-format.enable = true;
+            };
+          };
         };
     };
 }
