@@ -5,6 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-utils.url = "github:numtide/flake-utils";
     nix-oci = {
       url = "github:dauliac/nix-oci";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -37,7 +38,12 @@
   };
 
   outputs =
-    inputs@{ flake-parts, self, ... }:
+    inputs@{
+      flake-parts,
+      flake-utils,
+      self,
+      ...
+    }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
         inputs.treefmt-nix.flakeModule
@@ -131,8 +137,28 @@
             env = addMeta (pythonSet.mkVirtualEnv "hello-env" workspace.deps.default);
             default = self'.packages.env;
             mypy = pythonSet.mkVirtualEnv "mypy" workspace.deps.all;
+            # need nix2container's skopeo for the `nix` datastore when messing
+            # with the nix-oci stuff below, it's not used for the
+            # streamLayeredImage because that outputs a script
             skopeo = inputs'.nix2container.packages.skopeo-nix2container;
-            # nix build ".#docker" && ./result | gzip --fast | skopeo copy docker-archive:stdin docker://ghcr.io/voidlily/hello-nix-uv-py:$TAG
+            # nix run ".#push"
+            # basically, i think nix-oci is unfinished, and i really don't like
+            # how it layers and i can't put in the labels i want (those options
+            # that would get passed into nix2container don't expose that field
+            # currently)
+            # also, need to figure out how to get to the mkOCIScript section
+            # still, is that a package? something else?
+            # if i were doing this, here's how i'd do it
+            # 1. build image, with all the opencontainers labels/annotations
+            # 2. optional multiarch merge step - do we sign just the multiarch
+            # manifest, or the components as well? what about vuln scans?
+            # 3. image attestation sign - is there a way to make this versatile with github
+            # vs cosign, or do we just leave this step open to implementation?
+            # 4. trivy sbom
+            # 5. sbom sign
+            # 6. vuln scan
+            # 7. vuln scan sign - this bit integrates with cluster kyverno
+            # policies that look for recent vuln scans
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "hello";
               contents = [
@@ -141,6 +167,7 @@
                 pkgs.dockerTools.binSh
               ];
               config = {
+                # TODO add opencontainer labels/annotations
                 exposedPorts = {
                   "8000/tcp" = { };
                 };
@@ -158,6 +185,24 @@
             default = {
               type = "app";
               program = "${self'.packages.env}/bin/fastapi";
+            };
+            push = flake-utils.lib.mkApp {
+              drv = pkgs.writeShellApplication {
+                name = "skopeo-push";
+                runtimeInputs = [
+                  pkgs.gzip
+                  pkgs.skopeo
+                ];
+                # TODO parameterize the image tag and repo name, so we can get
+                # this in its own flake
+                text = ''
+                  ${self'.packages.docker.outPath} | \
+                  gzip --fast | \
+                  skopeo copy \
+                  docker-archive:/dev/stdin \
+                  docker://ghcr.io/voidlily/hello-nix-uv-py:test
+                '';
+              };
             };
           };
 
