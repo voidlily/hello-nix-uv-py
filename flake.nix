@@ -12,6 +12,11 @@
       inputs.flake-parts.follows = "flake-parts";
     };
 
+    nix2container = {
+      url = "github:nlewo/nix2container";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -48,7 +53,7 @@
       systems = [
         "x86_64-linux"
         "aarch64-linux"
-        "aarch64-darwin"
+        # "aarch64-darwin"
       ];
       perSystem =
         {
@@ -126,6 +131,8 @@
             env = addMeta (pythonSet.mkVirtualEnv "hello-env" workspace.deps.default);
             default = self'.packages.env;
             mypy = pythonSet.mkVirtualEnv "mypy" workspace.deps.all;
+            skopeo = inputs'.nix2container.packages.skopeo-nix2container;
+            # nix build ".#docker" && ./result | gzip --fast | skopeo copy docker-archive:stdin docker://ghcr.io/voidlily/hello-nix-uv-py:$TAG
             docker = pkgs.dockerTools.streamLayeredImage {
               name = "hello";
               contents = [
@@ -165,11 +172,18 @@
             };
           };
 
+          # this requires manual invocation to push due to multiarch being shite
+          # nix build ".#oci-hello"
+          # nix run ".#skopeo" copy nix:result docker://ghcr.io/voidlily/hello-nix-uv-py:$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          # scripts inside the repo are a little brittle
+          # they also don't let me pass the opencontainers annotations/labels in yet
+          # nix-oci is also very opinionated about its layers
           oci.containers.hello = {
             package = self'.packages.env;
             multiArch.enabled = true;
-            registry = "localhost:5000";
-            push = false;
+            push = true;
+            registry = "ghcr.io";
+            name = "voidlily/hello-nix-uv-py";
             entrypoint = [
               "fastapi"
               "run"
