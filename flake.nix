@@ -230,12 +230,8 @@
                 # derivation is a shell script that calls the "stream docker
                 # image" python script, which we then gzip via stdin, and then feed into skopeo
                 # via stdin
-                # TODO parameterize the image tag and repo name, so we can get
-                # this in its own flake
-                # TODO parameterize registry name as well for minikube
                 # REGISTRY=ghcr.io/voidlily nix run ".#push"
                 # ^^ can also specify TAG when able
-                # this is extensible with like, TAG=tmp-${system}-amd64-$(git rev-parse ...)
                 text = ''
                   GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
                   REGISTRY="''${REGISTRY:-localhost:5000}"
