@@ -201,6 +201,19 @@
             # the alternative here is a justfile inside a devshell, but i want
             # to see how far i can take this design and how far it can go until
             # it breaks
+            push-multiarch = flake-utils.lib.mkApp {
+              drv = pkgs.writeShellApplication {
+                name = "skopeo-push-multiarch";
+                runtimeInputs = [
+                  pkgs.git
+                ];
+                text = ''
+                  GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                  export TAG="tmp-${system}-$GIT_REV"
+                  ${self'.apps.push.program}
+                '';
+              };
+            };
             push = flake-utils.lib.mkApp {
               # writeShellApplication lets you inline shell scripts with their
               # own dependencies defined on its $PATH
@@ -210,6 +223,7 @@
                 runtimeInputs = [
                   pkgs.gzip
                   pkgs.skopeo
+                  pkgs.git
                 ];
                 # notes:
                 # the docker outPath is not a "real" package, the result of the
@@ -218,12 +232,22 @@
                 # via stdin
                 # TODO parameterize the image tag and repo name, so we can get
                 # this in its own flake
+                # TODO parameterize registry name as well for minikube
+                # REGISTRY=ghcr.io/voidlily nix run ".#push"
+                # ^^ can also specify TAG when able
+                # this is extensible with like, TAG=tmp-${system}-amd64-$(git rev-parse ...)
                 text = ''
+                  GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                  REGISTRY="''${REGISTRY:-localhost:5000}"
+                  IMAGE=hello-nix-uv-py
+                  TAG="''${TAG:-$GIT_REV}"
+                  DEST="docker://$REGISTRY/$IMAGE:$TAG"
                   ${self'.packages.docker.outPath} | \
                   gzip --fast | \
                   skopeo copy \
                   docker-archive:/dev/stdin \
-                  docker://ghcr.io/voidlily/hello-nix-uv-py:test
+                  "''${DEST:-docker://localhost:5000/hello-nix-uv-py:test}"
+                  # docker://ghcr.io/voidlily/hello-nix-uv-py:test
                 '';
               };
             };
