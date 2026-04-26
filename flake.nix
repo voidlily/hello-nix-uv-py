@@ -182,17 +182,40 @@
           };
 
           apps = {
-            default = {
+            default = self'.apps.fastapi;
+            fastapi = {
               type = "app";
               program = "${self'.packages.env}/bin/fastapi";
             };
+            # TODO tasks to still make as apps with inlined shell scripts:
+            # * multiarch merge
+            # * image sign provenance
+            # * syft sbom
+            # * sign sbom
+            # * trivy scan
+            # * sign trivy scan
+            #
+            # the overall goal here is that the CI script just calls the various
+            # nix apps in this repo
+            #
+            # the alternative here is a justfile inside a devshell, but i want
+            # to see how far i can take this design and how far it can go until
+            # it breaks
             push = flake-utils.lib.mkApp {
+              # writeShellApplication lets you inline shell scripts with their
+              # own dependencies defined on its $PATH
+              # also you get shellcheck automatically during the checkPhase
               drv = pkgs.writeShellApplication {
                 name = "skopeo-push";
                 runtimeInputs = [
                   pkgs.gzip
                   pkgs.skopeo
                 ];
+                # notes:
+                # the docker outPath is not a "real" package, the result of the
+                # derivation is a shell script that calls the "stream docker
+                # image" python script, which we then gzip via stdin, and then feed into skopeo
+                # via stdin
                 # TODO parameterize the image tag and repo name, so we can get
                 # this in its own flake
                 text = ''
