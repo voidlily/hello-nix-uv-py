@@ -13,11 +13,6 @@
       inputs.flake-parts.follows = "flake-parts";
     };
 
-    nix2container = {
-      url = "github:nlewo/nix2container";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -137,10 +132,6 @@
             env = addMeta (pythonSet.mkVirtualEnv "hello-env" workspace.deps.default);
             default = self'.packages.env;
             mypy = pythonSet.mkVirtualEnv "mypy" workspace.deps.all;
-            # need nix2container's skopeo for the `nix` datastore when messing
-            # with the nix-oci stuff below, it's not used for the
-            # streamLayeredImage because that outputs a script
-            skopeo = inputs'.nix2container.packages.skopeo-nix2container;
             # nix run ".#push"
             # basically, i think nix-oci is unfinished, and i really don't like
             # how it layers and i can't put in the labels i want (those options
@@ -258,36 +249,6 @@
               ruff-check.enable = true;
               ruff-format.enable = true;
             };
-          };
-
-          # this requires manual invocation to push due to multiarch being shite
-          # nix build ".#oci-hello"
-          # nix run ".#skopeo" copy nix:result docker://ghcr.io/voidlily/hello-nix-uv-py:$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-          # scripts inside the repo are a little brittle
-          # they also don't let me pass the opencontainers annotations/labels in yet
-          # nix-oci is also very opinionated about its layers
-          oci.containers.hello = {
-            package = self'.packages.env;
-            multiArch.enabled = true;
-            push = true;
-            registry = "ghcr.io";
-            name = "voidlily/hello-nix-uv-py";
-            entrypoint = [
-              "fastapi"
-              "run"
-              "-e"
-              "hello.main:app"
-            ];
-          };
-
-          oci.debug = {
-            enabled = true;
-            entrypoint.enabled = true;
-            packages = with pkgs; [
-              coreutils
-              bash
-              curl
-            ];
           };
         };
     };
