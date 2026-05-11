@@ -1,0 +1,27 @@
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: minikube
+spec:
+  vars:
+    - name: gitRepo
+      value: https://github.com/voidlily/hello-nix-uv-py
+    - name: image
+      value: ghcr.io/voidlily/hello-nix-uv.py
+    - name: stage
+      value: minikube
+  steps:
+    - task:
+        name: pre-update-image
+    - uses: kustomize-set-image
+      as: update-image
+      config:
+        path: src/k8s/base/
+        images:
+          - image: ${{ vars.image }}
+            digest: ${{ imageFrom(vars.image).Digest }}
+    - task:
+        name: post-update-image
+      vars:
+        commitMessage: ${{ outputs['update-image'].commitMessage }}

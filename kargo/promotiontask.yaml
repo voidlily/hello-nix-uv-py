@@ -1,0 +1,69 @@
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: pre-update-image
+spec:
+  vars:
+    - name: gitRepo
+    - name: stage
+  steps:
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.gitRepo }}
+        checkout:
+          - commit: ${{ commitFrom(vars.gitRepo).ID }}
+            path: ./src
+          - branch: stage/${{ ctx.stage }}
+            create: true
+            path: ./out
+    - uses: git-clear
+      config:
+        path: ./out
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: post-update-image
+spec:
+  vars:
+    - name: gitRepo
+    - name: stage
+    # pass in a commit message from your kustomize-set-image step
+    - name: commitMessage
+  steps:
+    - uses: kustomize-build
+      config:
+        # in a "real" setup, this would have overlays for each stage
+        path: ./src/k8s/base
+        outPath: ./out
+    - uses: git-commit
+      config:
+        path: ./out
+        message: ${{ vars.commitMessage }}
+    - uses: git-push
+      config:
+        path: ./out
+    - uses: argocd-update
+      config:
+        apps:
+          # in a real setup this would be a var and parameterized for
+          # microsersvice usage
+          - name: hello-nix-uv-py
+            sources:
+              - repoURL: ${{ vars.gitRepo }}
+                desiredRevision: ${{ task.outputs['commit'].commit }}
+    - uses: argocd-wait
+      config:
+        apps:
+          # in a real setup this would be a var and parameterized for
+          # microsersvice usage
+          - name: hello-nix-uv-py
+            # default is health, sync, operation
+            #
+            # however, sync does not account for pruning such as stale
+            # configmaps from ConfigMapGenerator
+            # https://github.com/akuity/kargo/issues/2984
+            waitFor:
+              - health
+              - operation

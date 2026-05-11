@@ -1,0 +1,15 @@
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: hello-nix-uv-py
+spec:
+  subscriptions:
+    - image:
+        repoURL: ghcr.io/voidlily/hello-nix-uv-py
+        imageSelectionStrategy: NewestBuild
+    - git:
+        repoURL: https://github.com/voidlily/hello-nix-uv-py
+  freightCreationCriteria:
+    expression: |
+      imageFrom('ghcr.io/voidlily/hello-nix-uv-py').Tag == "sha-" + commitFrom('https://github.com/voidlily/hello-nix-uv-py').ID
