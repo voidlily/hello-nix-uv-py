@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-nix-uv-py
+spec:
+  selector:
+    name: hello-nix-uv-py
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

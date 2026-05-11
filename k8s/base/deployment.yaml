@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-nix-uv-py
+  labels:
+    app: hello-nix-uv-py
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: hello-nix-uv-py
+  template:
+    metadata:
+      labels:
+        app: hello-nix-uv-py
+    spec:
+      containers:
+        - name: hello
+          image: ghcr.io/voidlily/hello-nix-uv-py
+          ports:
+            - containerPort: 8000
