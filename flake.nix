@@ -224,17 +224,16 @@
                 # REGISTRY=ghcr.io/voidlily nix run ".#push"
                 # ^^ can also specify TAG when able
                 text = ''
-                  GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+                  GIT_REV=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
                   REGISTRY="''${REGISTRY:-localhost:5000}"
                   IMAGE=hello-nix-uv-py
-                  TAG="''${TAG:-$GIT_REV}"
+                  TAG="sha-''${TAG:-$GIT_REV}"
                   DEST="docker://$REGISTRY/$IMAGE:$TAG"
                   ${self'.packages.docker.outPath} | \
                   gzip --fast | \
                   skopeo copy \
                   docker-archive:/dev/stdin \
                   "''${DEST:-docker://localhost:5000/hello-nix-uv-py:test}"
-                  # docker://ghcr.io/voidlily/hello-nix-uv-py:test
                 '';
               };
             };
