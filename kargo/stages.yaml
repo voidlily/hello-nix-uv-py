@@ -8,6 +8,8 @@ spec:
     - origin:
         kind: Warehouse
         name: hello-nix-uv-py
+      sources:
+        direct: true
   promotionTemplate:
     spec:
       vars:
