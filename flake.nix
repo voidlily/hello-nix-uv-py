@@ -9,7 +9,6 @@
     nix-oci = {
       url = "github:dauliac/nix-oci";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.treefmt-nix.follows = "treefmt-nix";
       inputs.flake-parts.follows = "flake-parts";
     };
 
@@ -63,10 +62,21 @@
           inputs',
           pkgs,
           system,
+          lib,
           ...
         }:
         let
-          python = pkgs.python314;
+          # https://pyproject-nix.github.io/uv2nix/usage/getting-started.html
+          # sort all eligible python interpreters by version, and get the latest
+          # version
+          python = lib.head (
+            builtins.sort (x: y: x.version > y.version) (
+              inputs.pyproject-nix.lib.util.filterPythonInterpreters {
+                inherit (workspace) requires-python;
+                inherit (pkgs) pythonInterpreters;
+              }
+            )
+          );
 
           workspace = inputs.uv2nix.lib.workspace.loadWorkspace {
             workspaceRoot = ./.;
