@@ -14,7 +14,7 @@ spec:
         checkout:
           - commit: ${{ commitFrom(vars.gitRepo).ID }}
             path: ./src
-          - branch: stage/${{ ctx.stage }}
+          - branch: stages/${{ ctx.stage }}
             create: true
             path: ./out
     - uses: git-clear
