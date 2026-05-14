@@ -30,4 +30,5 @@ spec:
         - task:
             name: post-update-image
           vars:
-            commitMessage: ${{ outputs['update-image'].commitMessage }}
+            - name: commitMessage
+              value: ${{ outputs['update-image'].commitMessage }}
