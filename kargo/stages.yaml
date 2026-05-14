@@ -16,7 +16,7 @@ spec:
         - name: gitRepo
           value: https://github.com/voidlily/hello-nix-uv-py
         - name: image
-          value: ghcr.io/voidlily/hello-nix-uv.py
+          value: ghcr.io/voidlily/hello-nix-uv-py
         - name: stage
           value: minikube
       steps:
@@ -24,9 +24,6 @@ spec:
             name: pre-update-image
         - uses: kustomize-set-image
           as: update-image
-          vars:
-            - name: image
-              value: ${{ vars.image }}
           config:
             path: src/k8s/base/
             images:
