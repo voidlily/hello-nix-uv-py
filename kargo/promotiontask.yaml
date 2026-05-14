@@ -38,6 +38,7 @@ spec:
         path: ./src/k8s/base
         outPath: ./out
     - uses: git-commit
+      as: commit
       config:
         path: ./out
         message: ${{ vars.commitMessage }}
