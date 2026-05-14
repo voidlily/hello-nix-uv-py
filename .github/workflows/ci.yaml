@@ -1,8 +1,9 @@
 ---
 name: "CI"
-on:
+"on":
   # pull_request:
   push:
+    branches: [main]
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -19,7 +20,7 @@ jobs:
       - run: nix build
       - run: nix flake check
       - name: Login to ghcr
-        shell: 'nix develop -c bash -e {0}'
+        shell: "nix develop -c bash -e {0}"
         run: echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io -u ${{ github.actor }} --password-stdin
       - run: nix run ".#push"
         env:
