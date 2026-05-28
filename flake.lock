@@ -206,11 +206,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1778776970,
-        "narHash": "sha256-YH0feXF8SauexQlV/npbp4ySTnm62vjJfzhNLc8oPQ0=",
+        "lastModified": 1779842984,
+        "narHash": "sha256-26aQ/UQ9hx1Zi9Lu71/RrmRslzlvjWks/KrHQdW3dgc=",
         "owner": "dauliac",
         "repo": "nix-oci",
-        "rev": "02a8761d86a19028c0160da6d2f2b19f0291cf60",
+        "rev": "9f3d6752aabdb30f5d38b45dff8df7e8f7257de2",
         "type": "github"
       },
       "original": {
