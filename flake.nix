@@ -237,7 +237,7 @@
                   GIT_REV=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
                   REGISTRY="''${REGISTRY:-localhost:5000}"
                   IMAGE=hello-nix-uv-py
-                  TAG="sha-''${TAG:-$GIT_REV}"
+                  TAG="''${TAG:-sha-$GIT_REV}"
                   DEST="docker://$REGISTRY/$IMAGE:$TAG"
                   ${self'.packages.docker.outPath} | \
                   gzip --fast | \
